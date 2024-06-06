@@ -10,17 +10,16 @@ import (
 	"github.com/sirupsen/logrus"
 
 	flowidFilter "github.com/zalando/skipper/filters/flowid"
-	logFilter "github.com/zalando/skipper/filters/log"
 )
 
 const (
 	dateFormat      = "02/Jan/2006:15:04:05 -0700"
-	commonLogFormat = `%s - %s [%s] "%s %s %s" %d %d`
+	commonLogFormat = `%s(%s) - %d(%d) %s %s %s://%s%s %d %s`
 	// format:
 	// remote_host - - [date] "method uri protocol" status response_size "referer" "user_agent"
 	combinedLogFormat = commonLogFormat + ` "%s" "%s"`
 	// We add the duration in ms, a requested host and a flow id and audit log
-	accessLogFormat = combinedLogFormat + " %d %s %s %s\n"
+	accessLogFormat = combinedLogFormat + " %s\n"
 )
 
 type accessLogFormatter struct {
@@ -85,9 +84,9 @@ func omitWhitespace(h string) string {
 
 func (f *accessLogFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	keys := []string{
-		"host", "auth-user", "timestamp", "method", "uri", "proto",
-		"status", "response-size", "referer", "user-agent",
-		"duration", "requested-host", "flow-id", "audit"}
+		"ip", "asn", "status", "res-size", "method", "proto", "scheme", "host", "uri", "res-time", "req-id",
+		"referer", "user-agent",
+		"ja3"}
 
 	values := make([]interface{}, len(keys))
 	for i, key := range keys {
@@ -116,54 +115,67 @@ func LogAccess(entry *AccessEntry, additional map[string]interface{}) {
 		return
 	}
 
-	host := ""
+	ts := entry.RequestTime.Format(dateFormat)
+	ip := ""
 	method := ""
+	scheme := ""
 	uri := ""
 	proto := ""
 	referer := ""
 	userAgent := ""
-	requestedHost := ""
-	flowId := ""
-	auditHeader := ""
-
-	ts := entry.RequestTime.Format(dateFormat)
+	reqHost := ""
+	reqSize := int64(0)
+	reqId := ""
 	status := entry.StatusCode
-	responseSize := entry.ResponseSize
-	duration := int64(entry.Duration / time.Millisecond)
-	authUser := entry.AuthUser
+	resSize := entry.ResponseSize
+	resTime := int64(entry.Duration / time.Millisecond)
+	ja3 := ""
+	geo := ""
+	asn := ""
 
 	if entry.Request != nil {
-		host = remoteHost(entry.Request)
+		ip = remoteHost(entry.Request)
 		method = entry.Request.Method
 		proto = entry.Request.Proto
 		referer = entry.Request.Referer()
 		userAgent = entry.Request.UserAgent()
-		requestedHost = entry.Request.Host
-		flowId = entry.Request.Header.Get(flowidFilter.HeaderName)
+		reqHost = entry.Request.Host
+		reqId = entry.Request.Header.Get(flowidFilter.HeaderName)
+		reqSize = entry.Request.ContentLength
+
+		scheme = "http"
+		if entry.Request.TLS != nil {
+			scheme = "https"
+			ja3 = entry.Request.TLS.JA3Hash
+		}
+
+		geo = entry.Request.Header.Get("X-Country-Code")
+		asn = entry.Request.Header.Get("X-ASN")
 
 		uri = entry.Request.RequestURI
 		if stripQuery {
 			uri = stripQueryString(uri)
 		}
-
-		auditHeader = entry.Request.Header.Get(logFilter.UnverifiedAuditHeader)
 	}
 
 	logData := logrus.Fields{
-		"timestamp":      ts,
-		"host":           host,
-		"method":         method,
-		"uri":            uri,
-		"proto":          proto,
-		"referer":        referer,
-		"user-agent":     userAgent,
-		"status":         status,
-		"response-size":  responseSize,
-		"requested-host": requestedHost,
-		"duration":       duration,
-		"flow-id":        flowId,
-		"audit":          auditHeader,
-		"auth-user":      authUser,
+		"timestamp":  ts,
+		"ip":         ip,
+		"geo":        geo,
+		"asn":        asn,
+		"method":     method,
+		"proto":      proto,
+		"scheme":     scheme,
+		"host":       reqHost,
+		"uri":        uri,
+		"status":     status,
+		"res-size":   resSize,
+		"res-time":   resTime,
+		"req-size":   reqSize,
+		"req-id":     reqId,
+		"user-agent": userAgent,
+		"referer":    referer,
+		"ja3":        ja3,
 	}
 
 	for k, v := range additional {

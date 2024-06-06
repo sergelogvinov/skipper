@@ -200,6 +200,7 @@ func (p *upgradeProxy) dialBackend(req *http.Request) (net.Conn, error) {
 			if err != nil {
 				return nil, err
 			}
+
 			err = tlsConn.VerifyHostname(hostToVerify)
 			if err != nil {
 				tlsConn.Close()

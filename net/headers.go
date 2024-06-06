@@ -60,6 +60,12 @@ func (h *ForwardedHeaders) Set(req *http.Request) {
 
 	if h.Proto != "" {
 		req.Header.Set("X-Forwarded-Proto", h.Proto)
+	} else {
+		if req.TLS == nil {
+			req.Header.Set("X-Forwarded-Proto", "http")
+		} else {
+			req.Header.Set("X-Forwarded-Proto", "https")
+		}
 	}
 }
 

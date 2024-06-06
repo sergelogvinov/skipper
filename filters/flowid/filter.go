@@ -13,7 +13,7 @@ const (
 	Name = filters.FlowIdName
 
 	ReuseParameterValue = "reuse"
-	HeaderName          = "X-Flow-Id"
+	HeaderName          = "X-Request-Id"
 )
 
 // Generator interface should be implemented by types that can generate request tracing Flow IDs.

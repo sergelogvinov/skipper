@@ -70,6 +70,9 @@ func extractCertificate(cert *x509.Certificate) string {
 // Largely inspired by traefik, see also https://github.com/traefik/traefik/blob/6c19a9cb8fb9e41a274bf712580df3712b69dc3e/pkg/middlewares/passtlsclientcert/pass_tls_client_cert.go#L146
 func (f *tlsFilter) Request(ctx filters.FilterContext) {
 	if t := ctx.Request().TLS; t != nil {
+		ctx.Request().Header.Set("X-Forwarded-Tls-Ja3", ctx.Request().TLS.JA3Raw)
+		ctx.Request().Header.Set("X-Forwarded-Tls-Ja3H", ctx.Request().TLS.JA3Hash)
+
 		if len(t.PeerCertificates) > 0 {
 			ctx.Request().Header.Set(certHeaderName, getCertificates(ctx.Request().TLS.PeerCertificates))
 		}

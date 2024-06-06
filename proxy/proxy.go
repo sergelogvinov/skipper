@@ -796,18 +796,13 @@ func WithParams(p Params) *Proxy {
 		}()
 	}
 
+	tr.TLSClientConfig = &tls.Config{}
 	if p.ClientTLS != nil {
 		tr.TLSClientConfig = p.ClientTLS
 	}
 
 	if p.Flags.Insecure() {
-		if tr.TLSClientConfig == nil {
-			/* #nosec */
-			tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-		} else {
-			/* #nosec */
-			tr.TLSClientConfig.InsecureSkipVerify = true
-		}
+		tr.TLSClientConfig.InsecureSkipVerify = true
 	}
 
 	m := p.Metrics
@@ -989,6 +984,8 @@ func (p *Proxy) makeBackendRequest(ctx *context, requestContext stdlibcontext.Co
 		return nil, &proxyError{handled: true}
 	}
 
+	// ctx.Logger().Debugf("call makeBackendRequest %s -> %s, %+v, %+v", ctx.request.Host, req.URL, p, req.Header)
+
 	roundTripper, err := p.getRoundTripper(ctx, req)
 	if err != nil {
 		return nil, &proxyError{err: fmt.Errorf("failed to get roundtripper: %w", err), code: http.StatusBadGateway}
@@ -1100,6 +1097,10 @@ func (p *Proxy) getRoundTripper(ctx *context, req *http.Request) (http.RoundTrip
 		req.RemoteAddr = ctx.request.RemoteAddr
 
 		return rt, nil
+	case "https":
+		p.clientTLS.ServerName = ctx.request.Host
+
+		return p.roundTripper, nil
 	default:
 		return p.roundTripper, nil
 	}
